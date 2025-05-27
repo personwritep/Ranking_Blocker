@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Ranking Blocker
 // @namespace        http://tampermonkey.net/
-// @version        1.9
+// @version        2.0
 // @description        不要なランキングノミネートの非表示
 // @author        Ameba Blog User
 // @match        https://blogger.ameba.jp/genres/*
@@ -308,6 +308,7 @@ function neo_pager(){
             '<style>'+
             '#input_page { position: absolute; top: 2px; right: 40px; '+
             'font: bold 16px Meiryo; padding: 2px 0 0 12px; width: 70px; height: 19px; }'+
+            '#input_page::-webkit-inner-spin-button { height: 20px; margin-top: 1px; }'+
             '</style>';
 
         let ambHeader=document.querySelector('#ambHeader');

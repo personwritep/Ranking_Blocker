@@ -1,0 +1,435 @@
+// ==UserScript==
+// @name         Ranking Blocker
+// @namespace    http://tampermonkey.net/
+// @version      1.1
+// @description  不要なランキングノミネートの非表示
+// @author       Ameba Blog User
+// @match        https://blogger.ameba.jp/genres/*
+// @match        https://blogger.ameba.jp/hashtags/*
+// @match        https://blogger.ameba.jp/ranking/*
+// ==/UserScript==
+
+
+let ua=0;
+let agent = window.navigator.userAgent.toLowerCase();
+if(agent.indexOf('firefox') > -1){ ua=1; }
+
+
+let rb_style=
+    '<style id="RB_style">'+
+    '.-ameblo-cmnhf-logo { width: 66px; padding-left: 7px; cursor: pointer; '+
+    'outline: #028d9f solid 1px; outline-offset: -2px; border-radius: 3px; }'+
+    '.-ameblo-cmnhf-logo a { pointer-events: none; }'+
+    '.RB_sw { position: absolute; top: 4px; left: -40px; font: bold 10px Meiryo; '+
+    'padding: 5px 2px 4px; border: 1px solid #aaa; background: #fff; '+
+    'cursor: pointer; display: none; }'+
+    '.RB_sw.B:hover { color: red; }'+
+    '.RB_sw.U:hover { color: #26c6da; }'+
+    '.RB_item:hover .RB_sw { display: block; }'+
+    '</style>';
+
+if(document.querySelector('#RB_style')){
+    document.querySelector('#RB_style').remove(); }
+document.body.insertAdjacentHTML('beforeend', rb_style);
+
+
+
+let block_id=[];
+let read_json=localStorage.getItem('RankingBlock_ID'); // ローカルストレージ保存名
+block_id=JSON.parse(read_json);
+if(block_id==null){ block_id=['tmp1','tmp2']; }
+let block_filter=block_id.join('|');
+let block_regex=RegExp(block_filter);
+
+let edit_mode; // Ranking Blocker の動作モード
+edit_mode=localStorage.getItem('RankingBlock_mode'); // ローカルストレージ保存名
+if(edit_mode!=0 && edit_mode!=1){
+    edit_mode=0;
+    localStorage.setItem('RankingBlock_mode', 0); } // edit_mode 初期値「0」
+
+
+neo_pager();
+
+
+
+let retry=0;
+let interval=setInterval(wait_target, 100);
+function wait_target(){
+    retry++;
+    if(retry>10){ // リトライ制限 10回 1sec
+        clearInterval(interval); }
+    let target=document.querySelector('.-ameblo-cmnhf-logo a'); // 監視 target
+    if(target){
+        clearInterval(interval);
+        setter(); }}
+
+function setter(){
+    let logo_sw=document.querySelector('.-ameblo-cmnhf-logo');
+    if(edit_mode==0){
+        logo_sw.style.outlineColor='#028d9f';
+        logo_sw.style.background='#fff'; }
+    else{
+        logo_sw.style.outlineColor='#fff';
+        logo_sw.style.background='red'; }
+
+    logo_sw.addEventListener('click', function(event){
+        event.preventDefault();
+        if (event.ctrlKey==true){
+            menu(); }
+        else{
+            emode_set(); }}, false);
+} // setter()
+
+
+
+function menu(){
+    let insert_dialog;
+    insert_dialog=document.createElement('div');
+    insert_dialog.setAttribute('id', 'rankb');
+
+    let inner=
+        '<input id="button0" type="submit" value="✖ 閉じる">'+
+        '<input id="button1" type="submit" value="ブロックリストを保存する">'+
+        '<input id="button2" type="file">'+
+        '<span id="button2_span">　ブロックリストのJSONファイルを選択</span>'+
+        '<input id="button3" type="submit" value="ヘルプ">';
+
+    insert_dialog.innerHTML=inner;
+
+    let css=
+        '#rankb { position: fixed; top: 0; white-space: nowrap; font-size: 14px; '+
+        'width: 100%; padding: 0 60px; background: #96b7c7; }'+
+        '#rankb input { font: normal 14px/24px Meiryo; }'+
+        '#button0 { padding: 2px 6px 0; margin: 9px 0; }'+
+        '#button1 { padding: 2px 8px 0; margin: 9px 0 9px 40px; }'+
+        '#button2 { margin: 9px -180px 9px 40px; }'+
+        '#button2_span { background: #96b7c7; vertical-align: -1px; }'+
+        '#button3 { padding: 2px 6px 0; margin: 9px 0 9px 40px; }';
+
+    if(ua==1){
+        css+=
+            '#button0 { padding: 0 6px; margin: 9px 0; }'+
+            '#button1 { padding: 0 8px; margin: 9px 0 9px 40px; }'+
+            '#button2 { margin: 9px -210px 9px 40px; width: 265px; }'+
+            '#button3 { padding: 0 6px; margin: 9px 0 9px 40px; }'; }
+
+    let style=document.createElement('style');
+    style.innerHTML=css;
+    insert_dialog.appendChild(style);
+
+    if(!document.querySelector('#rankb')){
+        document.body.appendChild(insert_dialog); }
+
+
+    let button0=document.querySelector('#button0');
+    button0.onclick=function(){
+        insert_dialog.remove(); }
+
+
+    let button1=document.querySelector('#button1');
+    button1.onclick=function(){
+        let write_json=JSON.stringify(block_id);
+        let blob=new Blob([write_json], {type: 'application/json'});
+        let a=document.createElement("a");
+        a.href=URL.createObjectURL(blob);
+        document.body.appendChild(a);
+        a.download='ranking_bl.json';
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href); }
+
+
+    let button2=document.querySelector('#button2');
+    button2.addEventListener("change" , function(){
+        if(!(button2.value)) return; // ファイルが選択されない場合
+        let file_list=button2.files;
+        if(!file_list) return; // ファイルリストが選択されない場合
+        let file=file_list[0];
+        if(!file) return; // ファイルが無い場合
+
+        let file_reader=new FileReader();
+        file_reader.readAsText(file);
+        file_reader.onload=function(){
+            if(file_reader.result.slice(0, 7)=='["tmp1"'){ // ranking_bl.jsonの確認
+                block_id=JSON.parse(file_reader.result);
+                let write_json=JSON.stringify(block_id);
+                localStorage.setItem('RankingBlock_ID', write_json); // ストレージ保存名
+                location.reload(); }}; });
+
+
+    let button3=document.querySelector('#button3');
+    button3.onclick=function(){
+        let url='https://ameblo.jp/personwritep/entry-12757564496.html';
+        window.open(url, '_blank'); }
+
+} // menu()
+
+
+
+function emode_set(){
+    let logo_sw=document.querySelector('.-ameblo-cmnhf-logo');
+    if(edit_mode==0){
+        edit_mode=1;
+        localStorage.setItem('RankingBlock_mode', 1);
+        logo_sw.style.outlineColor='#fff';
+        logo_sw.style.background='red';
+        blocker(); }
+    else if(edit_mode==1){
+        edit_mode=0;
+        localStorage.setItem('RankingBlock_mode', 0);
+        logo_sw.style.outlineColor='#028d9f';
+        logo_sw.style.background='#fff';
+        blocker(); }}
+
+
+
+
+let target0=document.querySelector('.l-container'); // 監視 target
+let monitor0=new MutationObserver(neo_pager);
+monitor0.observe(target0, {childList: true, subtree: true}); // リストページ更新の監視開始
+
+function neo_pager(){
+    if(location.pathname.includes('blogs/ranking') || // 総合ブログ
+       location.pathname.includes('entries/ranking') || // 記事
+       location.pathname.includes('ranking/monthly') || // 全体（月間）
+       location.pathname.includes('ranking/daily')){ // 全体（デイリー）
+
+        let pager=
+            '<input id="input_page" type="number" autofocus="" min="0" step="20">'+
+            '<style>'+
+            '#input_page { position: absolute; top: 2px; right: 40px; '+
+            'font: bold 16px Meiryo; padding: 2px 0 0 12px; width: 70px; height: 19px; }'+
+            '</style>';
+
+        let ambHeader=document.querySelector('#ambHeader');
+        if(!document.querySelector('#input_page')){
+            ambHeader.insertAdjacentHTML('beforeend', pager); }
+
+        let input_page=document.querySelector('#input_page');
+
+
+        let wurl=window.location.search; // クエリー文字列から現在のページを取得
+        let q=0;
+        if(wurl){
+            let query=wurl.split('&');
+            for(let k=0; k<query.length; k++){
+                if(query[k].includes('rank=')){ // 総合ブログ・全体（月間）・全体（デイリー）
+                    q=query[k].replace(/[^0-9]/g, ''); }
+                if(query[k].includes('offset=')){ // 記事
+                    q=query[k].replace(/[^0-9]/g, ''); }}}
+
+        input_page.value=q;
+
+        document.onkeydown=function(event){
+            if(event.keyCode==38){ // 「⇧」キーを取得
+                event.preventDefault();
+                input_page.stepUp(1); }
+            if(event.keyCode==40){ // 「⇩」キーを取得
+                event.preventDefault();
+                input_page.stepDown(1); }}
+
+
+        if(location.pathname.includes('blogs/ranking') || // 総合ブログ
+           location.pathname.includes('ranking/monthly') || // 全体（月間）
+           location.pathname.includes('ranking/daily')){ // 全体（デイリー）
+            document.addEventListener('keydown', function(event){
+                if(event.keyCode==13){
+                    event.preventDefault();
+                    let jump_url=window.location.href.split('?')[0]+
+                        '?rank='+input_page.value+'&amebaId='+input_page.value;
+                    window.location.href=jump_url; }}); }
+
+
+        if(location.pathname.includes('entries/ranking')){ // 記事
+            document.addEventListener('keydown', function(event){
+                if(event.keyCode==13){
+                    event.preventDefault();
+                    let jump_url=window.location.href.split('?')[0]+
+                        '?offset='+input_page.value+'&amebaId=0&entryId=0';
+                    window.location.href=jump_url; }}); }}
+
+
+    else{ // ハッシュタグ・新着の場合
+        let input_page=document.querySelector('#input_page');
+        if(input_page){
+            input_page.remove(); }}
+
+} // neo_pager()
+
+
+
+
+let target1=document.querySelector('.l-container'); // 監視 target
+let monitor1=new MutationObserver(blocker);
+monitor1.observe(target1, {childList: true, subtree: true}); // リストページ更新監視開始
+
+blocker();
+
+function blocker(){
+    let k;
+    let user_href=[];
+    let user_a=[];
+    let user_id=[];
+    let send;
+
+
+    if(location.pathname.includes('genres/') || // 総合ブログ・記事・新着記事
+       location.pathname.includes('hashtags/')){ // ハッシュタグ
+
+        let g_nav=document.querySelectorAll('.c-genreGlobalNav__item');
+
+        if(g_nav[1].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemA=document.querySelectorAll('.p-rankingAllText__item');
+            for(k=0; k<rank_itemA.length; k++){
+                user_a[k]=rank_itemA[k].querySelector('.p-rankingAllText__user a');
+                user_href[k]=user_a[k].getAttribute('href');
+                block_item(rank_itemA[k], user_href[k]);}} // 総合ブログ
+
+
+        if(g_nav[2].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemT=document.querySelectorAll('.p-rankingTodayText__item');
+            for(k=0; k<rank_itemT.length; k++){
+                user_a[k]=rank_itemT[k].querySelector('.p-rankingTodayText__user a');
+                user_href[k]=user_a[k].getAttribute('href');
+                block_item(rank_itemT[k], user_href[k]); }} // 記事
+
+
+        if(g_nav[3].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemH=document.querySelectorAll('.p-hashtagEntryRanking__item');
+            for(k=0; k<rank_itemH.length; k++){
+                user_a[k]=rank_itemH[k].querySelector('.p-hashtagEntryRanking__user a');
+                user_href[k]=user_a[k].getAttribute('href');
+                block_item(rank_itemH[k], user_href[k]); }} // ハッシュタグ
+
+
+        if(g_nav[4].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemR=document.querySelectorAll('.p-recentEntryText__item');
+            for(k=0; k<rank_itemR.length; k++){
+                user_a[k]=rank_itemR[k].querySelector('.p-recentEntryText__user a');
+                user_href[k]=user_a[k].getAttribute('href');
+                block_item(rank_itemR[k], user_href[k]); }}} // 新着記事
+
+
+    if(location.pathname.includes('ranking/monthly') || // 全体（月間）
+       location.pathname.includes('ranking/daily')){ // 全体（デイリー）
+        let rank_itemA=document.querySelectorAll('.p-rankingAllText__item');
+        for(k=0; k<rank_itemA.length; k++){
+            user_a[k]=rank_itemA[k].querySelector('.p-rankingAllText__user a');
+            user_href[k]=user_a[k].getAttribute('href');
+            block_item(rank_itemA[k], user_href[k]);}}
+
+
+
+    function block_item(item, user_href){
+        if(block_regex.test(user_href)==true){
+            if(edit_mode==0){
+                item.style.visibility='hidden'; }
+            if(edit_mode==1){
+                item.style.visibility='visible';
+                item.style.background='#a9c1cf'; }}}
+
+} // blocker
+
+
+
+
+let target2=document.querySelector('.l-container'); // 監視 target
+let monitor2=new MutationObserver(checker);
+monitor2.observe(target2, {childList: true, subtree: true}); // リストページ更新の監視開始
+
+checker();
+
+function checker(){
+    let k;
+    let user_href=[];
+    let user_a=[];
+    let user_aH=[];
+    let user_id=[];
+
+
+    if(location.pathname.includes('genres/') || // 総合ブログ・記事・新着記事
+       location.pathname.includes('hashtags/')){ // ハッシュタグ
+
+        let g_nav=document.querySelectorAll('.c-genreGlobalNav__item');
+
+        if(g_nav[1].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemA=document.querySelectorAll('.p-rankingAllText__item');
+            for(k=0; k<rank_itemA.length; k++){
+                user_a[k]=rank_itemA[k].querySelector('.p-rankingAllText__user a');
+                user_href[k]=user_a[k].getAttribute('href');
+                check_item(rank_itemA[k], user_href[k]); }} // 総合ブログ
+
+
+        if(g_nav[2].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemT=document.querySelectorAll('.p-rankingTodayText__item');
+            for(k=0; k<rank_itemT.length; k++){
+                user_a[k]=rank_itemT[k].querySelector('.p-rankingTodayText__user a');
+                user_href[k]=user_a[k].getAttribute('href');
+                check_item(rank_itemT[k], user_href[k]); }} //  記事
+
+
+        if(g_nav[3].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemH=document.querySelectorAll('.p-hashtagEntryRanking__item');
+            for(k=0; k<rank_itemH.length; k++){
+                user_a[k]=rank_itemH[k].querySelector('.p-hashtagEntryRanking__user a');
+                user_aH[k]= // URL取得先
+                    rank_itemH[k].querySelector('.p-hashtagEntryRanking__blogName>a');
+                user_href[k]=user_aH[k].getAttribute('href');
+                check_item(rank_itemH[k], user_href[k]); }} // ハッシュタグ
+
+
+        if(g_nav[4].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemR=document.querySelectorAll('.p-recentEntryText__item');
+            for(k=0; k<rank_itemR.length; k++){
+                user_a[k]=rank_itemR[k].querySelector('.p-recentEntryText__user a');
+                user_href[k]=user_a[k].getAttribute('href');
+                check_item(rank_itemR[k], user_href[k]); }}} // 新着記事
+
+
+    if(location.pathname.includes('ranking/monthly') || // 全体（月間）
+       location.pathname.includes('ranking/daily')){ // 全体（デイリー）
+        let rank_itemA=document.querySelectorAll('.p-rankingAllText__item');
+        for(k=0; k<rank_itemA.length; k++){
+            user_a[k]=rank_itemA[k].querySelector('.p-rankingAllText__user a');
+            user_href[k]=user_a[k].getAttribute('href');
+            check_item(rank_itemA[k], user_href[k]); }}
+
+
+    function check_item(item, user_href){
+        item.classList.add('RB_item');
+        let sw;
+        if(block_regex.test(user_href)==false){
+            sw='<div class="RB_sw B">Block</div>'; }
+        else{
+            sw='<div class="RB_sw U">Unset</div>'; }
+        if(!item.querySelector('.RB_sw')){
+            item.insertAdjacentHTML('beforeend', sw); }
+
+        let RB_sw=item.querySelector('.RB_sw');
+        RB_sw.onclick=function(event){
+            event.preventDefault();
+            local_backup(user_href); }}
+
+
+    function local_backup(user_href){
+        if(block_regex.test(user_href)!=true){
+            let ok=confirm(" ⛔　 ブロックリストに登録しますか？");
+            if(ok){
+                let user_id=user_href.replace('https://ameblo.jp/', '');
+                user_id=user_id.replace(/\//g, '');
+                block_id.push(user_id);
+                let write_json=JSON.stringify(block_id);
+                localStorage.setItem('RankingBlock_ID', write_json); // ストレージ保存名
+                location.reload(); }}
+        if(block_regex.test(user_href)==true){
+            let ok=confirm(" 🟢　 ブロックリストから外し表示させますか？");
+            if(ok){
+                let user_id=user_href.replace('https://ameblo.jp/', '');
+                user_id=user_id.replace(/\//g, '');
+                block_id=block_id.filter( function(item){
+                    return item !==user_id; });
+                let write_json=JSON.stringify(block_id);
+                localStorage.setItem('RankingBlock_ID', write_json); // ストレージ保存名
+                location.reload(); }}}
+
+} // checker

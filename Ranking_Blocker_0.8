@@ -1,0 +1,403 @@
+// ==UserScript==
+// @name         Ranking Blocker
+// @namespace    http://tampermonkey.net/
+// @version      0.8
+// @description  不要なランキングノミネートの非表示
+// @author       Ameba Blog User
+// @match        https://blogger.ameba.jp/genres/*
+// @match        https://blogger.ameba.jp/hashtags/*
+// ==/UserScript==
+
+
+window.addEventListener('load', function(){
+
+    // ブロックリストを全クリアするには、以下のコードを有効にしてリロードします。
+    // 再びブロックリストの登録を可能にするには、以下のコードを元通りコメントアウトします。
+    //    window.localStorage.removeItem("RankingBlock_ID");
+
+
+    let block_id=[];
+    let read_json=localStorage.getItem('RankingBlock_ID'); // ローカルストレージ保存名
+    block_id=JSON.parse(read_json);
+    if(block_id==null){ block_id=['tmp1','tmp2']; }
+    let block_filter=block_id.join('|');
+    let block_regex=RegExp(block_filter);
+
+    let ua=0;
+    let agent = window.navigator.userAgent.toLowerCase();
+    if(agent.indexOf('firefox') > -1){ ua=1; }
+
+    neo_pager();
+
+    let edit_mode=get_cookie('RB_emode'); // edit_modeを Cookieから読出し
+    let click_mode=get_cookie('RB_cmode'); // click_modeを Cookieから読出し
+
+    let logo_sw=document.querySelector('.-ameblo-cmnhf-logo');
+    if(edit_mode==0){
+        logo_sw.style.background='transparent'; }
+    else{
+        logo_sw.style.background='red'; }
+
+
+
+    logo_sw.addEventListener('click', (event)=>{
+        event.preventDefault();
+        if (event.ctrlKey==true){
+            let insert_dialog;
+            insert_dialog=document.createElement('div');
+            insert_dialog.setAttribute('id', 'rankb');
+
+            let inner=
+                '<input id="button0" type="submit" value="✖ 閉じる">'+
+                '<input id="button1" type="submit" value="ブロックリストを保存する">'+
+                '<input id="button2" type="file">'+
+                '<span id="button2_span">　ブロックリストのJSONファイルを選択</span>'+
+                '<input id="button3" type="submit" value="指定： Ctrl+Click">';
+
+            insert_dialog.innerHTML=inner;
+
+            let css=
+                '#rankb { position: fixed; top: 0; white-space: nowrap; font-size: 14px; '+
+                'width: 100%; padding: 0 60px; background: #96b7c7; } '+
+                '#rankb input { font: normal 14px/24px Meiryo; } '+
+                '#button0 { padding: 2px 6px 0; margin: 9px 0; } '+
+                '#button1 { padding: 2px 8px 0; margin: 9px 0 9px 40px; } '+
+                '#button2 { margin: 9px -180px 9px 40px; } '+
+                '#button2_span { background: #96b7c7; vertical-align: -1px; } '+
+                '#button3 { padding: 2px 6px 0; margin: 9px 0 9px 40px; } ';
+
+            if(ua==1){
+                css+=
+                    '#button0 { padding: 0 6px; margin: 9px 0; } '+
+                    '#button1 { padding: 0 8px; margin: 9px 0 9px 40px; } '+
+                    '#button2 { margin: 9px -210px 9px 40px; width: 265px; } '+
+                    '#button3 { padding: 0 6px; margin: 9px 0 9px 40px; } '; }
+
+            let style=document.createElement('style');
+            style.innerHTML=css;
+            insert_dialog.appendChild(style);
+
+            if(!document.querySelector('#rankb')){
+                document.body.appendChild(insert_dialog); }
+
+
+
+            let button0=document.querySelector('#button0');
+            button0.onclick=function(){
+                insert_dialog.remove(); }
+
+
+            let button1=document.querySelector('#button1');
+            button1.onclick=function(){
+                let write_json=JSON.stringify(block_id);
+                let blob=new Blob([write_json], {type: 'application/json'});
+                let a=document.createElement("a");
+                a.href=URL.createObjectURL(blob);
+                document.body.appendChild(a);
+                a.download='ranking_bl.json';
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(a.href); }
+
+
+            let button2=document.querySelector('#button2');
+            button2.addEventListener("change" , function(){
+                if(!(button2.value)) return; // ファイルが選択されない場合
+                let file_list=button2.files;
+                if(!file_list) return; // ファイルリストが選択されない場合
+                let file=file_list[0];
+                if(!file) return; // ファイルが無い場合
+
+                let file_reader=new FileReader();
+                file_reader.readAsText(file);
+                file_reader.onload=function(){
+                    if(file_reader.result.slice(0, 7)=='["tmp1"'){ // ranking_bl.jsonの確認
+                        block_id=JSON.parse(file_reader.result);
+                        let write_json=JSON.stringify(block_id);
+                        localStorage.setItem('RankingBlock_ID', write_json); // ストレージ保存名
+                        location.reload(); }}; });
+
+
+            let button3=document.querySelector('#button3');
+            if(click_mode==0){
+                button3.value="指定： Ctrl+Click"; }
+            else{
+                button3.value="指定： Shift+Click"; }
+
+            button3.onclick=function(){
+                if(click_mode==0){
+                    click_mode=1;
+                    button3.value="指定： Shift+Click";
+                    document.cookie='RB_cmode=1; Max-Age=2592000'; }
+                else{
+                    click_mode=0;
+                    button3.value="指定： Ctrl+Click";
+                    document.cookie='RB_cmode=0; Max-Age=2592000'; }}}
+
+        else{
+            emode_set(); }}, false);
+
+
+
+    function emode_set(){
+        if(edit_mode==0){
+            edit_mode=1;
+            document.cookie='RB_emode=1; Max-Age=2592000';
+            logo_sw.style.background='red';
+            blocker(); }
+        else if(edit_mode==1){
+            edit_mode=0;
+            document.cookie='RB_emode=0; Max-Age=2592000';
+            logo_sw.style.background='transparent';
+            blocker(); }}
+
+
+    function get_cookie(name){
+        let cookie_req=document.cookie.split('; ').find(row=>row.startsWith(name));
+        if(cookie_req){
+            if(cookie_req.split('=')[1]==null){
+                return 0; }
+            else{
+                return cookie_req.split('=')[1]; }}
+        if(!cookie_req){
+            return 0; }}
+
+
+
+    let target0=document.querySelector('.l-container'); // 監視 target
+    let monitor0=new MutationObserver(neo_pager);
+    monitor0.observe(target0, {childList: true, subtree: true}); // リストページ更新の監視開始
+
+    function neo_pager(){
+        if(location.pathname.indexOf('blogs/ranking')!=-1 || // 総合ブログランキング
+           location.pathname.indexOf('entries/ranking')!=-1){ // 記事ランキング
+
+            let input3=document.createElement('input');
+            input3.setAttribute('type', 'number');
+            input3.setAttribute('id', 'input_page');
+            input3.setAttribute('autofocus', '');
+            input3.setAttribute('step', 20);
+            input3.setAttribute('min', 0);
+            input3.setAttribute('style',
+                                'position: absolute; top: 2px; right: 40px; font: bold 16px Meiryo; '+
+                                'padding: 2px 0 0 12px; width: 70px; height: 19px;');
+            if(ua==1){
+                input3.setAttribute('style',
+                                    'position: absolute; top: 2px; right: 40px; font: bold 16px Meiryo; '+
+                                    'padding: 2px 0 0 12px; width: 70px; height: 19px;'); }
+
+            let ambHeader=document.querySelector('#ambHeader');
+            ambHeader.appendChild(input3);
+
+            let wurl=window.location.search; // クエリー文字列から現在のページを取得
+            let q=0;
+            if(wurl){
+                let query=wurl.split('&');
+                for(let k=0; k<query.length; k++){
+                    if(query[k].indexOf('rank=')!=-1){ // 総合ブログランキング
+                        q=query[k].replace(/[^0-9]/g, ''); }
+                    if(query[k].indexOf('offset=')!=-1){ // 記事ランキング
+                        q=query[k].replace(/[^0-9]/g, ''); }}}
+
+            input3.value=q;
+
+            if(location.pathname.indexOf('blogs/ranking')!=-1){ // 総合ブログランキング
+                document.addEventListener('keydown', function(event){
+                    if(event.keyCode==13){
+                        event.preventDefault();
+                        let jump_url=window.location.href.split('?')[0]+
+                            '?rank='+input3.value+'&amebaId='+input3.value;
+                        window.location.href=jump_url; }}); }
+
+
+            if(location.pathname.indexOf('entries/ranking')!=-1){ // 記事ランキング
+                document.addEventListener('keydown', function(event){
+                    if(event.keyCode==13){
+                        event.preventDefault();
+                        let jump_url=window.location.href.split('?')[0]+
+                            '?offset='+input3.value+'&amebaId=0&entryId=0';
+                        window.location.href=jump_url; }}); }
+
+
+            document.addEventListener('keydown', function(event){
+                if(event.keyCode==38){ // 「⇧」キーを取得
+                    event.preventDefault();
+                    input3.stepUp(1); }
+                if(event.keyCode==40){ // 「⇩」キーを取得
+                    event.preventDefault();
+                    input3.stepDown(1); }}); }
+
+        else{ // ハッシュタグ・新着の場合
+            let input_page=document.querySelector('#input_page');
+            if(input_page){
+                input_page.remove(); }}
+
+    } // neo_pager()
+
+
+
+    let target1=document.querySelector('.l-container'); // 監視 target
+    let monitor1=new MutationObserver(blocker);
+    monitor1.observe(target1, {childList: true, subtree: true}); // リストページ更新監視開始
+
+    blocker();
+
+    function blocker(){
+        let k;
+        let user_href=[];
+        let user_a=[];
+        let user_id=[];
+        let send;
+
+        let g_nav=document.querySelectorAll('.c-genreGlobalNav__item');
+
+
+        if(g_nav[1].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemA=document.querySelectorAll('.p-rankingAllText__item');
+            for(k=0; k<rank_itemA.length; k++){
+                user_a[k]=rank_itemA[k].querySelector('.p-rankingAllText__user a');
+                user_href[k]=user_a[k].getAttribute('href');
+                if(block_regex.test(user_href[k])==true){
+                    if(edit_mode==0){
+                        rank_itemA[k].style.opacity='0';
+                        rank_itemA[k].style.pointerEvents='none'; }
+                    if(edit_mode==1){
+                        rank_itemA[k].style.opacity='0.5';
+                        rank_itemA[k].style.pointerEvents='auto'; }}}} // 総合ブログランキング
+
+
+        if(g_nav[2].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemT=document.querySelectorAll('.p-rankingTodayText__item');
+            for(k=0; k<rank_itemT.length; k++){
+                user_a[k]=rank_itemT[k].querySelector('.p-rankingTodayText__user a');
+                user_href[k]=user_a[k].getAttribute('href');
+                if(block_regex.test(user_href[k])==true){
+                    if(edit_mode==0){
+                        rank_itemT[k].style.opacity='0';
+                        rank_itemT[k].style.pointerEvents='none'; }
+                    if(edit_mode==1){
+                        rank_itemT[k].style.opacity='0.5';
+                        rank_itemT[k].style.pointerEvents='auto'; }}}} // 記事ランキング
+
+
+        if(g_nav[3].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemH=document.querySelectorAll('.p-hashtagEntryRanking__item');
+            for(k=0; k<rank_itemH.length; k++){
+                user_a[k]=rank_itemH[k].querySelector('.p-hashtagEntryRanking__user a');
+                user_href[k]=user_a[k].getAttribute('href');
+                if(block_regex.test(user_href[k])==true){
+                    if(edit_mode==0){
+                        rank_itemH[k].style.opacity='0';
+                        rank_itemH[k].style.pointerEvents='none'; }
+                    if(edit_mode==1){
+                        rank_itemH[k].style.opacity='0.5';
+                        rank_itemH[k].style.pointerEvents='auto'; }}}} // ハッシュタグランキング
+
+
+        if(g_nav[4].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemR=document.querySelectorAll('.p-recentEntryText__item');
+            for(k=0; k<rank_itemR.length; k++){
+                user_a[k]=rank_itemR[k].querySelector('.p-recentEntryText__user a');
+                user_href[k]=user_a[k].getAttribute('href');
+                if(block_regex.test(user_href[k])==true){
+                    if(edit_mode==0){
+                        rank_itemR[k].style.opacity='0';
+                        rank_itemR[k].style.pointerEvents='none'; }
+                    if(edit_mode==1){
+                        rank_itemR[k].style.opacity='0.5';
+                        rank_itemR[k].style.pointerEvents='auto'; }}}} // 新着記事
+
+    } // blocker
+
+
+
+    let target2=document.querySelector('.l-container'); // 監視 target
+    let monitor2=new MutationObserver(checker);
+    monitor2.observe(target2, {childList: true, subtree: true}); // リストページ更新の監視開始
+
+    checker();
+
+    function checker(){
+        let k;
+        let n;
+        let user_href=[];
+        let user_a=[];
+        let user_aH=[];
+        let user_id=[];
+
+        let g_nav=document.querySelectorAll('.c-genreGlobalNav__item');
+
+
+        if(g_nav[1].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemA=document.querySelectorAll('.p-rankingAllText__item');
+            for(k=0; k<rank_itemA.length; k++){
+                let n=k;
+                user_a[n]=rank_itemA[n].querySelector('.p-rankingAllText__user a');
+                user_href[n]=user_a[n].getAttribute('href');
+                user_a[n].onclick=function(event){
+                    check(event, n); }}} // 総合ブログランキング
+
+
+        if(g_nav[2].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemT=document.querySelectorAll('.p-rankingTodayText__item');
+            for(k=0; k<rank_itemT.length; k++){
+                let n=k;
+                user_a[n]=rank_itemT[n].querySelector('.p-rankingTodayText__user a');
+                user_href[n]=user_a[n].getAttribute('href');
+                user_a[n].onclick=function(event){
+                    check(event, n); }}} //  記事ランキング
+
+
+        if(g_nav[3].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemH=document.querySelectorAll('.p-hashtagEntryRanking__item');
+            for(k=0; k<rank_itemH.length; k++){
+                let n=k;
+                user_a[n]=rank_itemH[n].querySelector('.p-hashtagEntryRanking__user a');
+                user_aH[n]= // URL取得先
+                    rank_itemH[n].querySelector('.p-hashtagEntryRanking__blogName>a');
+                user_href[n]=user_aH[n].getAttribute('href');
+                user_a[n].onclick=function(event){
+                    check(event, n); }}} // ハッシュタグランキング
+
+
+        if(g_nav[4].classList.contains('c-genreGlobalNav__item--active')==true){
+            let rank_itemR=document.querySelectorAll('.p-recentEntryText__item');
+            for(k=0; k<rank_itemR.length; k++){
+                let n=k;
+                user_a[n]=rank_itemR[n].querySelector('.p-recentEntryText__user a');
+                user_href[n]=user_a[n].getAttribute('href');
+                user_a[n].onclick=function(event){
+                    check(event, n); }}} // 新着記事
+
+
+        function check(event, n){
+            if((event.ctrlKey==true && click_mode==0) ||
+               (event.shiftKey==true && click_mode==1)){
+                event.preventDefault();
+                local_backup(n); }}
+
+
+        function local_backup(n){
+            if(block_regex.test(user_href[n])!=true){
+                let ok=confirm(" ⛔　 ブロックリストに登録しますか？");
+                if(ok){
+                    user_id[n]=user_href[n].replace('https://ameblo.jp/', '');
+                    user_id[n]=user_id[n].replace(/\//g, '');
+                    block_id.push(user_id[n]);
+                    let write_json=JSON.stringify(block_id);
+                    localStorage.setItem('RankingBlock_ID', write_json); // ストレージ保存名
+                    location.reload(); }}
+            if(block_regex.test(user_href[n])==true){
+                let ok=confirm(" ✅　 ブロックリストから外し表示させますか？");
+                if(ok){
+                    user_id[n]=user_href[n].replace('https://ameblo.jp/', '');
+                    user_id[n]=user_id[n].replace(/\//g, '');
+                    block_id=block_id.filter( function(item){
+                        return item !==user_id[n]; });
+                    let write_json=JSON.stringify(block_id);
+                    localStorage.setItem('RankingBlock_ID', write_json); // ストレージ保存名
+                    location.reload(); }}}
+
+    } // checker
+
+})

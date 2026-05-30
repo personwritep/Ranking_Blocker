@@ -1,0 +1,43 @@
+// ==UserScript==
+// @name         Ranking Blocker
+// @namespace    http://tampermonkey.net/
+// @version      0.1
+// @description  不要なランキングノミネートの非表示
+// @author       Ameba Blog User
+// @match        https://blogger.ameba.jp/genres/*
+// @run-at        document-body
+// ==/UserScript==
+
+window.addEventListener('load', function(){
+    'use strict';
+
+    var block_url= [
+        'https://ameblo.jp/AAAA/',
+        'https://ameblo.jp/BBBB/',
+        'https://ameblo.jp/CCCC/',
+        'https://ameblo.jp/DDDD/'
+    ].join('|');
+    var block_regex=RegExp( block_url );
+
+    blocker();
+
+    var target=document.querySelector('.c-section'); // 監視 target
+    var monitor=new MutationObserver(blocker);
+    monitor.observe(target, {childList: true}); // リストページ更新の監視開始
+
+
+    function blocker(){
+        let k;
+        let user_href=[];
+        let user_a=[];
+
+        let rank_item=document.querySelectorAll('.p-rankingTodayText__item');
+
+        for(k=0; k<rank_item.length; k++){
+            user_a[k]=rank_item[k].querySelector('.c-weakText');
+            user_href[k]=user_a[k].getAttribute('href');
+            if(block_regex.test(user_href[k])==true){
+                rank_item[k].style.opacity='0.1';
+                rank_item[k].style.pointerEvents='none'; }}}
+
+})

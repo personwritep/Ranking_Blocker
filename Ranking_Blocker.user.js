@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Ranking Blocker
 // @namespace        http://tampermonkey.net/
-// @version        2.0
+// @version        2.1
 // @description        不要なランキングノミネートの非表示
 // @author        Ameba Blog User
 // @match        https://blogger.ameba.jp/genres/*
@@ -77,7 +77,9 @@ function setter(){
         '<a href="'+ help_url +'" target="_blank" rel="noopener">'+ help_SVG +'</a>'+
         '<style>'+
         '.help_rb { position: absolute; right: 12px; top: 3px; '+
-        'height: 24px; width: 24px; cursor: pointer; }</style>';
+        'height: 24px; width: 24px; cursor: pointer; } '+
+        '.BloggerWebDesktopLegacyChrome-module__OgwvmW__ameba-header { '+
+        'visibility: visible; }</style>';
 
     let ambHeader=document.querySelector('#ambHeader');
     if(ambHeader && !document.querySelector('.help_rb')){
@@ -92,6 +94,8 @@ function setter(){
         '.RB_sw { position: absolute; top: 4px; left: -40px; font: bold 10px Meiryo; '+
         'padding: 5px 2px 4px; border: 1px solid #aaa; background: #fff; '+
         'cursor: pointer; display: none; }'+
+        '.RB_sw::after { content: "　"; font: 18px/24px meiryo; position: absolute; '+
+        'top: 0; right: -12px; }'+
         '.RB_sw.I { top: 0 !important; left: 4px !important; } '+
         '.RB_item.I { position: relative; }'+
         '.RB_sw.B:hover { color: red; }'+
@@ -113,7 +117,7 @@ function setter(){
 
     logo_sw.addEventListener('click', function(event){
         event.preventDefault();
-        if (event.ctrlKey==true){
+        if(event.ctrlKey==true){
             menu(); }
         else{
             emode_set(); }}, false);
@@ -127,7 +131,6 @@ function setter(){
 
 
 function menu(){
-
     let inner=
         '<div id="file_menu">'+
         '<input id="button0" type="submit" value="✖">'+
@@ -146,7 +149,10 @@ function menu(){
         'align-items: center; justify-content: flex-start; height: 46px; padding: 0 25px; '+
         'box-sizing: border-box; white-space: nowrap; background: #82bddc; } '+
         '#file_menu input { '+
-        'font: normal 15px/22px Meiryo; height: 30px; padding: 3px 8px 0; cursor: pointer; } '+
+        'font: normal 15px/22px Meiryo; height: 30px; padding: 3px 8px 0; cursor: pointer; '+
+        'border: 1px solid #aaa; border-radius: 4px; background: #fff; } '+
+        '#file_menu input[type="checkbox"] { appearance: auto; } '+
+        '#file_menu input[type="text"] { height: 30px !important; } '+
         '#file_menu #button0 { width: 28px; padding: 3px 6px 0; } '+
         '#button_add { margin: 0 5px 0 40px; min-width: 16px; } '+
         '#button_add_label {  font: normal 16px/22px Meiryo; padding: 3px 0 0; } '+
@@ -166,12 +172,10 @@ function menu(){
 
     let file_menu=document.querySelector('#file_menu');
     if(file_menu){
-
         let button0=document.querySelector('#button0');
         if(button0){
             button0.onclick=function(){
                 file_menu.remove(); }}
-
 
 
         let button1=document.querySelector('#button1');
@@ -188,10 +192,8 @@ function menu(){
                 URL.revokeObjectURL(a.href); }}
 
 
-
         let button_add=document.querySelector('#button_add');
         button_add.checked=true;
-
 
 
         let button2=document.querySelector('#button2');
@@ -232,11 +234,9 @@ function menu(){
             }); }
 
 
-
         let marks=document.querySelector('#marks');
         if(marks){
             marks.innerHTML='Block登録数 [<b>'+ (block_id.length-2) +'</b>]'; }
-
 
 
         let button4=document.querySelector('#button4');
@@ -249,7 +249,6 @@ function menu(){
                     block_id.splice(2);
                     write_local();
                     location.reload(); }}}
-
 
 
         let id_box=document.querySelector('#id_box');
@@ -268,8 +267,10 @@ function menu(){
                     hiliter();
                 }, 1000); }}
 
-    }
+    } // if(file_menu)
+
 } // menu()
+
 
 
 
@@ -291,7 +292,7 @@ function emode_set(){
 
 
 
-let target0=document.querySelector('.l-container'); // 監視 target
+let target0=document.querySelector('head'); // 監視 target
 let monitor0=new MutationObserver(neo_pager);
 monitor0.observe(target0, {childList: true, subtree: true}); // リストページ更新の監視開始
 
@@ -303,17 +304,30 @@ function neo_pager(){
        location.pathname.includes('ranking/monthly') || // 全体（月間）
        location.pathname.includes('ranking/daily')){ // 全体（デイリー）
 
-        let pager=
+        pager();
+
+    } // 総合ブログ・記事・全体（月間）・全体（デイリー）の場合
+    else{
+        let input_page=document.querySelector('#input_page');
+        if(input_page){
+            input_page.remove(); } } // ハッシュタグ・新着の場合は使えない
+
+
+    function pager(){
+        let input_box=
             '<input id="input_page" type="number" autofocus="" min="0" step="20">'+
             '<style>'+
-            '#input_page { position: absolute; top: 2px; right: 40px; '+
+            '#ambHeader { visibility: visible !important; } '+
+            'nav { position: relative; } '+
+            '#input_page { position: absolute; top: 3px; right: 15px; background: #eee; '+
             'font: bold 16px Meiryo; padding: 2px 0 0 12px; width: 70px; height: 19px; }'+
             '#input_page::-webkit-inner-spin-button { height: 20px; margin-top: 1px; }'+
             '</style>';
 
-        let ambHeader=document.querySelector('#ambHeader');
-        if(ambHeader && !document.querySelector('#input_page')){
-            ambHeader.insertAdjacentHTML('beforeend', pager); }
+        let nav=document.querySelector('header>nav');
+        if(nav && !document.querySelector('#input_page')){
+            nav.insertAdjacentHTML('beforeend', input_box); }
+
 
         let input_page=document.querySelector('#input_page');
 
@@ -357,29 +371,14 @@ function neo_pager(){
                         '?offset='+input_page.value+'&amebaId=0&entryId=0';
                     window.location.href=jump_url; }}); }
 
-    } // 総合ブログ・記事・全体（月間）・全体（デイリー）の場合
-
-    else{ // ハッシュタグ・新着の場合
-        let input_page=document.querySelector('#input_page');
-        if(input_page){
-            input_page.remove(); }}
-
-
-    let gootag=document.querySelectorAll('#ambFooter ~ script'); // 不良要素削除
-    for(let k=0; k<gootag.length; k++){
-        if(gootag[k].textContent.includes('google_tag_manager')){
-            gootag[k].remove(); }}
-
-    let gooimg=document.querySelectorAll('#ambFooter ~ img[src*="ln.ameba.jp/v2/ra"]');
-    for(let k=0; k<gooimg.length; k++){
-        gooimg[k].remove(); }
+    } // pager();
 
 } // neo_pager()
 
 
 
 
-let target1=document.querySelector('.l-container'); // 監視 target
+let target1=document.querySelector('head'); // 監視 target
 let monitor1=new MutationObserver(blocker);
 monitor1.observe(target1, {childList: true, subtree: true}); // リストページ更新監視開始
 
@@ -396,89 +395,81 @@ function blocker(){
     if(location.pathname.includes('genres/') || // 総合ブログ・記事・新着記事
        location.pathname.includes('hashtags/')){ // ハッシュタグ
 
-        let g_nav=document.querySelectorAll('.c-genreGlobalNav__item');
+        let g_nav=document.querySelectorAll(
+            '.BloggerWebDesktopGenreHeader-module__bpphDa__tabs li');
         if(g_nav.length>0){
-            if(g_nav[1].classList.contains('c-genreGlobalNav__item--active')==true){
-                let rank_itemA=document.querySelectorAll('.p-rankingAllText__item');
+            if(g_nav[1].dataset.active=="true"){
+                let rank_itemA=document.querySelectorAll(
+                    '.BloggerWebDesktopBlogRankingTextItem-module__Ca_Mha__item');
                 for(k=0; k<rank_itemA.length; k++){
-                    user_a[k]=rank_itemA[k].querySelector('.p-rankingAllText__user a');
+                    user_a[k]=rank_itemA[k].querySelector('[class$="Ca_Mha__user-link"]');
                     user_href[k]=user_a[k].getAttribute('href');
                     block_item(rank_itemA[k], user_href[k]);
-                    check_item(rank_itemA[k], user_href[k]); }
+                    check_item(rank_itemA[k], user_href[k]); } // 総合ブログ サムネイル1個
 
-                let rank_itemAi=document.querySelectorAll('.p-rankingAllImage__item');
+                let rank_itemAi=document.querySelectorAll(
+                    '.BloggerWebDesktopGenreBlogRanking-module__68wECW__item');
                 for(k=0; k<rank_itemAi.length; k++){
-                    user_a[k]=rank_itemAi[k].querySelector('.p-rankingAllImage__user a');
+                    user_a[k]=rank_itemAi[k].querySelector('[class$="68wECW__profile-link"]');
                     user_href[k]=user_a[k].getAttribute('href');
                     block_item(rank_itemAi[k], user_href[k]);
-                    check_item(rank_itemAi[k], user_href[k]); }} // 総合ブログ
+                    check_item(rank_itemAi[k], user_href[k]); }} // 総合ブログ サムネイル2個
 
 
-            if(g_nav[2].classList.contains('c-genreGlobalNav__item--active')==true){
-                let rank_itemT=document.querySelectorAll('.p-rankingTodayText__item');
+            if(g_nav[2].dataset.active=="true"){
+                let rank_itemT=document.querySelectorAll(
+                    '.BloggerWebDesktopGenreEntryRanking-module__rKPCjq__item');
                 for(k=0; k<rank_itemT.length; k++){
-                    user_a[k]=rank_itemT[k].querySelector('.p-rankingTodayText__user a');
+                    user_a[k]=rank_itemT[k].querySelector('[class$="rKPCjq__profile"]');
                     user_href[k]=user_a[k].getAttribute('href');
                     block_item(rank_itemT[k], user_href[k]);
-                    check_item(rank_itemT[k], user_href[k]); }
+                    check_item(rank_itemT[k], user_href[k]); } // 記事 通常タイプ
 
-                let rank_itemTi=document.querySelectorAll('.p-rankingTodayImage__item');
+                let rank_itemTi=document.querySelectorAll(
+                    '.BloggerWebDesktopGenreEntryRanking-module__rKPCjq__image-item');
                 for(k=0; k<rank_itemTi.length; k++){
-                    user_a[k]=rank_itemTi[k].querySelector('.p-rankingTodayImage__blogName a');
+                    user_a[k]=rank_itemTi[k].querySelector('[class$="rKPCjq__image-blog-name"] a');
                     user_href[k]=user_a[k].getAttribute('href');
                     block_item_i(rank_itemTi[k], user_href[k]);
-                    check_item_i(rank_itemTi[k], user_href[k]); }} // 記事
+                    check_item_i(rank_itemTi[k], user_href[k]); }} // 記事 画像タイルタイプ
 
 
-            if(g_nav[3].classList.contains('c-genreGlobalNav__item--active')==true){
-                let rank_itemH=document.querySelectorAll('.p-hashtagEntryRanking__item');
+            if(g_nav[3].dataset.active=="true"){
+                let rank_itemH=document.querySelectorAll(
+                    '.BloggerWebDesktopHashtagEntryRanking-module__OK2WHq__item');
                 for(k=0; k<rank_itemH.length; k++){
-                    user_a[k]=rank_itemH[k].querySelector('.p-hashtagEntryRanking__user a');
-                    user_aH[k]= // URL取得先
-                        rank_itemH[k].querySelector('.p-hashtagEntryRanking__blogName>a');
-                    user_href[k]=user_aH[k].getAttribute('href');
+                    user_a[k]=rank_itemH[k].querySelector('[class$="OK2WHq__weak-text"]');
+                    user_href[k]=user_a[k].getAttribute('href');
                     block_item(rank_itemH[k], user_href[k]);
                     check_item(rank_itemH[k], user_href[k]); }} // ハッシュタグ
 
 
-            if(g_nav[4].classList.contains('c-genreGlobalNav__item--active')==true){
-                let rank_itemR=document.querySelectorAll('.p-recentEntryText__item');
-                for(k=0; k<rank_itemR.length; k++){
-                    user_a[k]=rank_itemR[k].querySelector('.p-recentEntryText__user a');
-                    user_href[k]=user_a[k].getAttribute('href');
-                    block_item(rank_itemR[k], user_href[k]);
-                    check_item(rank_itemR[k], user_href[k]); }
-
-                let rank_itemRi=document.querySelectorAll('.p-recentEntryImage__item');
+            if(g_nav[4].dataset.active=="true"){
+                let rank_itemRi=document.querySelectorAll(
+                    '.BloggerWebDesktopGenreNewsList-module__NkmBcG__image-item');
                 for(k=0; k<rank_itemRi.length; k++){
-                    user_a[k]=rank_itemRi[k].querySelector('.p-recentEntryImage__title a');
+                    user_a[k]=rank_itemRi[k].querySelector('[class$="NkmBcG__image-title"] a');
                     user_href[k]=user_a[k].getAttribute('href').split('/entry-')[0];
                     block_item(rank_itemRi[k], user_href[k]);
-                    check_item_i(rank_itemRi[k], user_href[k]); }} // 新着記事
+                    check_item(rank_itemRi[k], user_href[k]); } // 新着記事 ユーザーアイコン無し
+
+                let rank_itemR=document.querySelectorAll(
+                    '.BloggerWebDesktopNewsTextItem-module__gBBEqa__item');
+                for(k=0; k<rank_itemR.length; k++){
+                    user_a[k]=rank_itemR[k].querySelector('[class$="gBBEqa__user-link"]');
+                    user_href[k]=user_a[k].getAttribute('href');
+                    block_item(rank_itemR[k], user_href[k]);
+                    check_item(rank_itemR[k], user_href[k]); }} // 新着記事 ユーザーアイコン有り
 
         }} // 総合ブログ・記事・ハッシュタグ・新着記事
 
 
-    if(location.pathname.includes('hashtags/')){ // ハッシュタグ  タグリンクで開いた特例
-        let g_nav=document.querySelector('.c-genreGlobalNav__item');
-        if(!g_nav){ // ランキング選択が無い特例
-            let rank_itemH=document.querySelectorAll('.p-hashtagEntryRanking__item');
-            for(k=0; k<rank_itemH.length; k++){
-                user_a[k]=rank_itemH[k].querySelector('.p-hashtagEntryRanking__user a');
-                user_aH[k]= // URL取得先
-                    rank_itemH[k].querySelector('.p-hashtagEntryRanking__blogName>a');
-                user_href[k]=user_aH[k].getAttribute('href');
-                block_item(rank_itemH[k], user_href[k]);
-                check_item(rank_itemH[k], user_href[k]); }
-
-        }} // ハッシュタグ  タグリンクで開いた特例
-
-
     if(location.pathname.includes('ranking/monthly') || // 全体（月間）
        location.pathname.includes('ranking/daily')){ // 全体（デイリー）
-        let rank_itemA=document.querySelectorAll('.p-rankingAllText__item');
+        let rank_itemA=document.querySelectorAll(
+            '.BloggerWebDesktopBlogRankingTextItem-module__Ca_Mha__item');
         for(k=0; k<rank_itemA.length; k++){
-            user_a[k]=rank_itemA[k].querySelector('.p-rankingAllText__user a');
+            user_a[k]=rank_itemA[k].querySelector('[class$="Ca_Mha__user-link"]');
             user_href[k]=user_a[k].getAttribute('href');
             block_item(rank_itemA[k], user_href[k]);
             check_item(rank_itemA[k], user_href[k]); }
@@ -491,7 +482,7 @@ function blocker(){
         if(block_regex.test(user_href)==true){
             if(edit_mode==0){
                 item.style.visibility='hidden'; }
-            if(edit_mode==1){
+            else if(edit_mode==1){
                 item.style.visibility='visible';
                 item.style.background='#a9c1cf'; }}}
 
@@ -500,9 +491,9 @@ function blocker(){
         if(block_regex.test(user_href)==true){
             if(edit_mode==0){
                 item.style.visibility='hidden'; }
-            if(edit_mode==1){
+            else if(edit_mode==1){
                 item.style.visibility='visible';
-                item.style.background='red'; }}}
+                item.style.background='#a9c1cf'; }}}
 
 
     function check_item(item, user_href){
@@ -567,14 +558,10 @@ function hiliter(){
 
     let am_style=
         '<style class="AM_style">'+
-        '.p-rankingAllText__title a[href*="'+ ameba_id +'"], '+
-        '.p-rankingTodayText__blogName a[href*="'+ ameba_id +'"], '+
-        '.p-hashtagEntryRanking__blogName > a[href*="'+ ameba_id +'"], '+
-        '.p-recentEntryText__blogName a[href*="'+ ameba_id +'"], '+
-        '.p-rankingAllImage__title a[href*="'+ ameba_id +'"], '+
-        '.p-rankingTodayImage__title a[href*="'+ ameba_id +'"], '+
-        '.p-recentEntryImage__title a[href*="'+ ameba_id +'"] { '+
-        'color: #fff !important; background: red; }'+
+        'li:not([class$="item-prev"]):not([class$="item-next"]):has([href*="'+ ameba_id +'"]) { '+
+        'outline: 2px solid red; outline-offset: -2px; } '+
+        'li[class*="rKPCjq__image-item"]:has([href*="'+ ameba_id +'"]) { '+
+        'background: red } '+
         '</style>';
 
     if(document.querySelector('.AM_style')){

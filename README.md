@@ -3,4 +3,3 @@
 このツールの扱い方は、以下のマニュアルを参照ください。<br>
 https://ameblo.jp/personwritep/entry-12757564496.html
 
- 
